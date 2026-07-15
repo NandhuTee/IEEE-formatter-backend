@@ -2,7 +2,7 @@ from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.responses import FileResponse
 import os
 import shutil
-
+from fastapi.middleware.cors import CORSMiddleware
 from formatter.extractor import extract_document
 from formatter.analyzer import analyze_document
 from formatter.ieee_formatter import create_ieee_document
@@ -11,6 +11,24 @@ from formatter.ollama_client import analyze_with_ollama
 from models import GenerateRequest
 
 app = FastAPI(title="IEEE Formatter API")
+
+# ==========================
+# CORS Configuration
+# ==========================
+
+app.add_middleware(
+    CORSMiddleware,
+
+    allow_origins=[
+        "http://localhost:5173",
+    ],
+
+    allow_credentials=True,
+
+    allow_methods=["*"],
+
+    allow_headers=["*"],
+)
 
 UPLOAD_FOLDER = "uploads"
 OUTPUT_FOLDER = "output"
