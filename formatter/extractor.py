@@ -1,109 +1,107 @@
-from docx import Document
-from formatter.models import DocumentModel
+"""
+===============================================================================
+Main Extractor
+===============================================================================
+"""
 
-COMMON_HEADINGS = {
-    "abstract",
-    "keywords",
-    "introduction",
-    "related work",
-    "methodology",
-    "methods",
-    "results",
-    "discussion",
-    "conclusion",
-    "references"
-}
+from docx import Document
+
+from formatter.paragraph_extractor import extract_paragraphs
+from formatter.heading_extractor import extract_headings
+from formatter.table_extractor import extract_tables
+from formatter.image_extractor import extract_images
+from formatter.reference_extractor import extract_references
+
 
 
 def extract_document(file_path):
+
     doc = Document(file_path)
 
-    model = DocumentModel()
+    # Extract document parts
+    paragraphs = extract_paragraphs(doc)
+    headings = extract_headings(doc)
+    tables = extract_tables(doc)
+    figures = extract_images(doc)
+    references = extract_references(doc)
+   
 
-    paragraphs = []
+    # Convert paragraph objects to plain text
+    paragraph_text = [p["text"] for p in paragraphs]
 
-    # -------------------------
-    # Read paragraphs
-    # -------------------------
-    for para in doc.paragraphs:
-        text = para.text.strip()
+    # ---------------------------------------------------------
+    # Rule-based extraction (80%)
+    # ---------------------------------------------------------
 
-        if not text:
-            continue
+    title = ""
+    authors = []
+    affiliations = []
+    abstract = ""
+    keywords = []
 
-        paragraphs.append(text)
+    if len(paragraph_text) > 0:
+        title = paragraph_text[0]
 
-    # -------------------------
-    # Basic information
-    # -------------------------
-    if len(paragraphs) > 0:
-        model.title = paragraphs[0]
+    if len(paragraph_text) > 1:
+        authors.append(paragraph_text[1])
 
-    if len(paragraphs) > 1:
-        model.authors = [paragraphs[1]]
-
-    # -------------------------
     # Affiliations
-    # -------------------------
     i = 2
 
-    while i < len(paragraphs):
-        text = paragraphs[i]
+    while i < len(paragraph_text):
+
+        text = paragraph_text[i]
 
         if text.lower().startswith("abstract"):
             break
 
-        model.affiliations.append(text)
+        affiliations.append(text)
+
         i += 1
 
-    # -------------------------
     # Abstract
-    # -------------------------
-    if i < len(paragraphs):
-        model.abstract = paragraphs[i]
+    if i < len(paragraph_text):
 
-    # -------------------------
-    # Detect headings
-    # -------------------------
-    for para in doc.paragraphs:
+        abstract = paragraph_text[i]
 
-        text = para.text.strip()
+    # Keywords
+    for text in paragraph_text:
 
-        if not text:
-            continue
+        if text.lower().startswith("keywords"):
 
-        style_name = para.style.name.lower()
+            keyword_text = text.replace("Keywords", "")
+            keyword_text = keyword_text.replace(":", "")
 
-        if style_name.startswith("heading") or text.lower() in COMMON_HEADINGS:
-            model.sections.append({
-                "title": text,
-                "level": 1
-            })
+            keywords = [
+                k.strip()
+                for k in keyword_text.split(",")
+                if k.strip()
+            ]
 
-    # -------------------------
-    # Extract tables
-    # -------------------------
-    for index, table in enumerate(doc.tables, start=1):
+            break
 
-        rows = []
+    return {
 
-        for row in table.rows:
-            rows.append([cell.text.strip() for cell in row.cells])
+        "title": title,
 
-        model.tables.append({
-            "id": index,
-            "caption": "",
-            "rows": rows
-        })
+        "authors": authors,
 
-    # -------------------------
-    # Placeholder for figures
-    # -------------------------
-    model.figures = []
+        "affiliations": affiliations,
 
-    # -------------------------
-    # Placeholder for references
-    # -------------------------
-    model.references = []
+        "abstract": abstract,
 
-    return model
+        "keywords": keywords,
+
+        "paragraphs": paragraphs,
+
+        "headings": headings,
+
+        "tables": tables,
+
+        "figures": figures,
+
+        "references": references,
+
+      
+
+    }

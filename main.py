@@ -1,10 +1,14 @@
-from fastapi import FastAPI, UploadFile, File
+from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi.responses import FileResponse
 import os
 import shutil
 
 from formatter.extractor import extract_document
 from formatter.analyzer import analyze_document
 from formatter.ieee_formatter import create_ieee_document
+from formatter.validator import validate_document
+from formatter.ollama_client import analyze_with_ollama
+from models import GenerateRequest
 
 app = FastAPI(title="IEEE Formatter API")
 
@@ -25,28 +29,55 @@ def home():
 
 @app.post("/upload")
 async def upload_file(file: UploadFile = File(...)):
-    # Save uploaded file
+
     file_path = os.path.join(UPLOAD_FOLDER, file.filename)
 
     with open(file_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
 
-    # Extract document
-    result = extract_document(file_path)
+    extracted = extract_document(file_path)
 
-    # Analyze document
-    analysis = analyze_document(result)
+    analysis = analyze_document(extracted)
 
-    # Create IEEE document
-    output_path = os.path.join(OUTPUT_FOLDER, "IEEE_Output.docx")
+    errors = validate_document(analysis)
 
-    create_ieee_document(
-        analysis,
-        output_path
+    return {
+        "status": "success",
+        "document": analysis,
+        "errors": errors
+    }
+
+@app.get("/download/{filename}")
+def download_file(filename: str):
+
+    file_path = os.path.join(OUTPUT_FOLDER, filename)
+
+    if not os.path.exists(file_path):
+        raise HTTPException(
+            status_code=404,
+            detail="File not found"
+        )
+
+    return FileResponse(
+        path=file_path,
+        filename=filename,
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
     )
 
-    # Return response
+@app.post("/generate")
+def generate_document(data: GenerateRequest):
+
+    output_file = os.path.join(
+        OUTPUT_FOLDER,
+        "IEEE_Output.docx"
+    )
+
+    create_ieee_document(
+        data.model_dump(),
+        output_file
+    )
+
     return {
-        "message": "IEEE document created successfully",
-        "output_file": output_path
+        "status": "success",
+        "download_url": "/download/IEEE_Output.docx"
     }

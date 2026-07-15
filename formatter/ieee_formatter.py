@@ -1,119 +1,211 @@
+"""
+===============================================================================
+IEEE DOCUMENT FORMATTER
+===============================================================================
+
+Responsibilities
+----------------
+✔ Create a new IEEE document
+✔ Apply IEEE formatting rules
+✔ Add Title
+✔ Add Authors
+✔ Add Affiliations
+✔ Add Abstract
+✔ Add Keywords
+✔ Add Sections
+✔ Add Tables
+✔ Add Figures
+✔ Add References
+
+This module NEVER calls Ollama.
+
+===============================================================================
+"""
+
 from docx import Document
-from docx.shared import Pt
-from docx.enum.section import WD_SECTION
-from docx.shared import Mm
-from docx.shared import Pt
 
-def set_ieee_page_layout(doc):
-    section = doc.sections[0]
+from formatter.ieee_rules import (
+    apply_page_layout,
+    format_title,
+    format_authors,
+    format_affiliations,
+    format_abstract_heading,
+    format_abstract,
+    format_keywords,
+    format_heading1,
+    format_body,
+    format_table,
+    format_table_caption,
+    format_reference_heading,
+    format_reference,
+    format_figure_caption
+)
 
-    # A4 size
-    section.page_width = Mm(210)
-    section.page_height = Mm(297)
-
-    # IEEE margins (adjust later if needed)
-    section.top_margin = Mm(19)
-    section.bottom_margin = Mm(25)
-    section.left_margin = Mm(16)
-    section.right_margin = Mm(16)
-
-
-def add_title(doc, text):
-    p = doc.add_paragraph()
-
-    run = p.add_run(text)
-
-    run.font.name = "Times New Roman"
-    run.font.size = Pt(24)
-    run.bold = True
-
-    p.alignment = 1
-
-#Authors
-def add_authors(doc, text):
-    p = doc.add_paragraph()
-
-    run = p.add_run(text)
-
-    run.font.name = "Times New Roman"
-    run.font.size = Pt(11)
-
-    p.alignment = 1
-
-def add_affiliation(doc, text):
-    p = doc.add_paragraph()
-
-    run = p.add_run(text)
-
-    run.font.name = "Times New Roman"
-    run.font.size = Pt(10)
-
-    p.alignment = 1
-
-def add_abstract(doc, text):
-
-    h = doc.add_heading("Abstract", level=1)
-
-    h.runs[0].font.name = "Times New Roman"
-
-    p = doc.add_paragraph()
-
-    run = p.add_run(text)
-
-    run.font.name = "Times New Roman"
-    run.font.size = Pt(10)
 
 def create_ieee_document(data, output_file):
 
+    # -------------------------------------------------------------------------
+    # Create Document
+    # -------------------------------------------------------------------------
+
     doc = Document()
 
-    set_ieee_page_layout(doc)
+    apply_page_layout(doc)
 
-    add_title(doc, data["title"])
-
-    add_authors(doc, data["authors"])
-
-    for aff in data["affiliations"]:
-        add_affiliation(doc, aff)
-
-    add_abstract(doc, data["abstract"])
-
-    set_ieee_page_layout(doc)
+    # -------------------------------------------------------------------------
     # Title
-    title = doc.add_heading(data["title"], level=0)
-    title.runs[0].font.name = "Times New Roman"
-    title.runs[0].font.size = Pt(24)
+    # -------------------------------------------------------------------------
 
+    if data.get("title"):
+
+        p = doc.add_paragraph(data["title"])
+
+        format_title(p)
+
+    # -------------------------------------------------------------------------
     # Authors
-    p = doc.add_paragraph()
-    run = p.add_run(data["authors"])
-    run.font.name = "Times New Roman"
-    run.font.size = Pt(11)
+    # -------------------------------------------------------------------------
 
+    if data.get("authors"):
+
+        authors = ", ".join(data["authors"])
+
+        p = doc.add_paragraph(authors)
+
+        format_authors(p)
+
+    # -------------------------------------------------------------------------
     # Affiliations
-    for aff in data["affiliations"]:
-        p = doc.add_paragraph()
-        run = p.add_run(aff)
-        run.font.name = "Times New Roman"
-        run.font.size = Pt(10)
+    # -------------------------------------------------------------------------
 
+    for aff in data.get("affiliations", []):
+
+        p = doc.add_paragraph(aff)
+
+        format_affiliations(p)
+
+    # -------------------------------------------------------------------------
     # Abstract
-    h = doc.add_heading("Abstract", level=1)
-    h.runs[0].font.name = "Times New Roman"
+    # -------------------------------------------------------------------------
 
-    p = doc.add_paragraph(data["abstract"])
+    if data.get("abstract"):
 
-    # Body
-    for para in data["body"]:
-        doc.add_paragraph(para)
+        heading = doc.add_paragraph("Abstract")
 
+        format_abstract_heading(heading)
+
+        p = doc.add_paragraph(data["abstract"])
+
+        format_abstract(p)
+
+    # -------------------------------------------------------------------------
+    # Keywords
+    # -------------------------------------------------------------------------
+
+    if data.get("keywords"):
+
+        text = ", ".join(data["keywords"])
+
+        p = doc.add_paragraph("Keywords: " + text)
+
+        format_keywords(p)
+
+    # -------------------------------------------------------------------------
+    # Sections
+    # -------------------------------------------------------------------------
+
+    for section in data.get("sections", []):
+
+        title = section.get("title", "")
+
+        body = section.get("content", [])
+
+        if title:
+
+            p = doc.add_paragraph(title)
+
+            format_heading1(p)
+
+        for para in body:
+
+            p = doc.add_paragraph(para)
+
+            format_body(p)
+
+    # -------------------------------------------------------------------------
+    # Tables
+    # -------------------------------------------------------------------------
+
+    for table_data in data.get("tables", []):
+
+        caption = table_data.get("caption", "")
+
+        if caption:
+
+            p = doc.add_paragraph(caption)
+
+            format_table_caption(p)
+
+        rows = table_data.get("rows", [])
+
+        if rows:
+
+            table = doc.add_table(
+                rows=len(rows),
+                cols=len(rows[0])
+            )
+
+            for i, row in enumerate(rows):
+
+                for j, value in enumerate(row):
+
+                    table.cell(i, j).text = value
+
+            format_table(table)
+
+    # -------------------------------------------------------------------------
+    # Figures
+    # -------------------------------------------------------------------------
+
+    for fig in data.get("figures", []):
+
+        image = fig.get("image", "")
+
+        if image:
+
+            try:
+                doc.add_picture(image)
+            except Exception:
+                pass
+
+        caption = fig.get("caption", "")
+
+        if caption:
+
+            p = doc.add_paragraph(caption)
+
+            format_figure_caption(p)
+
+    # -------------------------------------------------------------------------
     # References
-    if data["references"]:
-        doc.add_heading("References", level=1)
+    # -------------------------------------------------------------------------
+
+    if data.get("references"):
+
+        p = doc.add_paragraph("References")
+
+        format_reference_heading(p)
 
         for ref in data["references"]:
-            doc.add_paragraph(ref)
+
+            r = doc.add_paragraph(ref)
+
+            format_reference(r)
+
+    # -------------------------------------------------------------------------
+    # Save
+    # -------------------------------------------------------------------------
 
     doc.save(output_file)
 
-    
+    return output_file
